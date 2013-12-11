@@ -47,5 +47,8 @@ create_lock
 
 function process {
 	OUTPUT=`${DIR}/process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug`
-	catch_error ($? $OUTPUT)
+
+	RET[0]=$?
+	RET[1]=$OUTPUT
+	catch_error RET
 }
