@@ -158,7 +158,7 @@ class MetacloudExport::Process
     @logger.debug "With passwd: #{password.inspect}"
     user = ::OpenNebula::User.new(::OpenNebula::User.build_xml, @client)
     rc = user.allocate(user_data.login, password, DEFAULT_AUTHN_DRIVER)
-    check_retval(rc)
+    self.class.check_retval(rc)
 
     # groups
     user_set_groups(user, user_data.groups)
@@ -170,13 +170,13 @@ class MetacloudExport::Process
     @logger.info "Setting grp: #{user_data.groups.first.inspect}"
     primary_grp = groups.first
     rc = user.chgrp(gname_to_gid(primary_grp))
-    check_retval(rc)
+    self.class.check_retval(rc)
 
     groups.each do |grp|
       next if grp == primary_grp
       @logger.debug "Also adding grp: #{grp.inspect}"
       rc = user.addgroup(gname_to_gid(grp))
-      check_retval(rc)
+      self.class.check_retval(rc)
     end
   end
 
@@ -198,7 +198,7 @@ class MetacloudExport::Process
     if one_user['AUTH_DRIVER'] != DEFAULT_AUTHN_DRIVER
       @logger.debug "Changing AUTH_DRIVER from #{one_user['AUTH_DRIVER'].inspect} to #{DEFAULT_AUTHN_DRIVER.inspect}"
       rc = one_user.chauth(DEFAULT_AUTHN_DRIVER)
-      check_retval(rc)
+      self.class.check_retval(rc)
     end
 
     # passwd
@@ -206,7 +206,7 @@ class MetacloudExport::Process
     if one_user['PASSWORD'] != pw
       @logger.debug "Changing PASSWD from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
       rc = one_user.passwd(pw)
-      check_retval(rc)
+      self.class.check_retval(rc)
     end
 
     # add groups
@@ -225,7 +225,7 @@ class MetacloudExport::Process
     @logger.debug "Del. groups: #{groups.to_s}"
     groups.each do |del_group|
       rc = user.delgroup(gname_to_gid(del_group))
-      check_retval(rc)
+      self.class.check_retval(rc)
     end
   end
 
@@ -250,7 +250,7 @@ class MetacloudExport::Process
     remove_networks(user_data['ID'])
 
     rc = user_data.delete
-    check_retval(rc)
+    self.class.check_retval(rc)
   end
 
   def uname_to_data(username)
