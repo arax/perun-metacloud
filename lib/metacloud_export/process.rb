@@ -187,7 +187,7 @@ class MetacloudExport::Process
     password << user_data.cert_dns.join('|')
     password = password.join('|')
 
-    password
+    self.class.escape_dn(password)
   end
 
   def update_user(user_data)
@@ -302,6 +302,14 @@ class MetacloudExport::Process
 
     def check_retval(rc)
       raise rc.message if ::OpenNebula.is_error?(rc)
+    end
+
+    def escape_dn(dn)
+        dn.gsub(/\s/) { |s| "\\"+s[0].ord.to_s(16) }
+    end
+
+    def unescape_dn(dn)
+        dn.gsub(/\\[0-9a-f]{2}/) { |s| s[1,2].to_i(16).chr }
     end
 
   end
