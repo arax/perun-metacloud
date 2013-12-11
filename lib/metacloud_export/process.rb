@@ -72,7 +72,7 @@ class MetacloudExport::Process
     group_names = []
 
     user.each_xpath("GROUPS/ID") do |gid|
-      group_names << gid_to_gname(gid)
+      group_names << gid_to_gname(gid.to_i)
     end
 
     @logger.debug "Group names: #{group_names.to_s}"
@@ -101,7 +101,7 @@ class MetacloudExport::Process
 
     @group_pool.each do |group|
       if group['NAME'] == gname
-        gid = group['ID']
+        gid = group['ID'].to_i
         break
       end
     end
