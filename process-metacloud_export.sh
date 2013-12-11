@@ -48,10 +48,12 @@ create_lock
 function process {
 	OLD_DIR=`pwd`
 	cd $DIR
-	OUTPUT=`./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug`
-	cd $OLD_DIR
 
+	# Run Forrest, Run!
+	OUTPUT=`./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug 2>&1`
 	RET[0]=$?
 	RET[1]=$OUTPUT
+
+	cd $OLD_DIR
 	catch_error RET
 }
