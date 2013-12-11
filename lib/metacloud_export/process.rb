@@ -1,6 +1,7 @@
 class MetacloudExport::Process
 
   DEFAULT_AUTHN_DRIVER = ::OpenNebula::User::X509_AUTH || "x509"
+  EXCLUDED_ONE_GROUPS = ['oneadmin', 'users', 'devel'].freeze
 
   def initialize(source, target, logger)
     parsed = JSON.parse(source.read)
@@ -55,6 +56,9 @@ class MetacloudExport::Process
   end
 
   def existing_user_names(perun_groups)
+    # TODO: fix!
+    perun_groups = existing_group_names - EXCLUDED_ONE_GROUPS
+
     @logger.debug "Getting user names for #{perun_groups.to_s} from UserPool"
     users = []
 
