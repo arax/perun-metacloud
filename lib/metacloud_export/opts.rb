@@ -1,7 +1,3 @@
-require 'optparse'
-require 'hashie/mash'
-require 'logger'
-
 class MetacloudExport::Opts
 
   LOG_OUTPUTS = [:stdout, :stderr].freeze
@@ -13,6 +9,18 @@ class MetacloudExport::Opts
     options.source = ARGF
     options.debug = false
 
+    options.target!.endpoint = ENV['ONE_XMLRPC'] ? URI(ENV['ONE_XMLRPC']) : URI('http://localhost:2633/RPC2')
+
+    if ENV['ONE_AUTH']
+      creds = File.read(ENV['ONE_AUTH']).split(':')
+
+      options.target!.username = creds.first
+      options.target!.password = creds.last
+    else
+      options.target!.username = "oneadmin"
+      options.target!.password = "onepass"
+    end
+
     options.log!.out = STDERR
     options.log!.level = Logger::ERROR
 
@@ -21,6 +29,27 @@ class MetacloudExport::Opts
 
       opts.separator ""
       opts.separator "Options:"
+
+      opts.on("-e",
+              "--endpoint URI",
+              String,
+              "ONE XML-RPC endpoint") do |endpoint|
+        options.endpoint = URI(endpoint)
+      end
+
+      opts.on("-u",
+              "--username NAME",
+              String,
+              "ONE XML-RPC username") do |username|
+        options.username = username
+      end
+
+      opts.on("-p",
+              "--password PASS",
+              String,
+              "ONE XML-RPC password") do |password|
+        options.password = password
+      end
 
       opts.on("-s",
               "--source FILE",

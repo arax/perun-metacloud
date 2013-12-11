@@ -1,0 +1,241 @@
+class MetacloudExport::Process
+
+  DEFAULT_AUTHN_DRIVER = "x509"
+
+  def initialize(source, target, logger)
+    parsed = JSON.parse(source.read)
+    @source = Hashie::Mash.new({ :users => parsed })
+
+    @endpoint = target.endpoint.to_s
+    secret = "#{target.username}:#{target.password}"
+    @client = ::OpenNebula::Client.new(secret, @endpoint)
+
+    @logger = logger
+
+    @user_pool = self.class.user_pool(@client, @logger)
+    @group_pool = self.class.group_pool(@client, @logger)
+  end
+
+  def run
+    perun_groups = perun_group_names(@source.users)
+    one_groups = existing_group_names
+
+    check_groups(one_groups, perun_groups)
+
+    perun_users = @source.users.collect { |p_user| p_user.login }
+    one_users = existing_user_names(perun_groups)
+
+    @logger.debug "Clean-up of old ONE accounts"
+    one_users.each do |one_user|
+      remove_user(one_user) unless perun_users.include?(one_user)
+    end
+
+    @logger.debug "Adding/Updating ONE accounts"
+    @source.users.each do |perun_user|
+      check_user(perun_user)
+
+      if one_users.include?(perun_user.login)
+        update_user(perun_user)
+      else
+        add_user(perun_user)
+      end
+    end
+  end
+
+  private
+
+  def existing_group_names
+    @logger.debug "Getting group names from GroupPool"
+    groups = []
+
+    @group_pool.each { |group| groups << group['NAME'] }
+
+    @logger.debug "Group names: #{groups.to_s}"
+    groups
+  end
+
+  def existing_user_names(perun_groups)
+    @logger.debug "Getting user names for #{perun_groups.to_s} from UserPool"
+    users = []
+
+    @user_pool.each do |user| 
+      rest = user_group_names(user) - perun_groups
+      users << user['NAME'] if rest.empty?
+    end
+
+    @logger.debug "User names: #{users.to_s}"
+    users
+  end
+
+  def user_group_names(user)
+    @logger.debug "Getting group names for #{user['NAME'].inspect}"
+    group_names = []
+
+    user.each_xpath("GROUPS/ID") do |gid|
+      group_names << gid_to_gname(gid)
+    end
+
+    @logger.debug "Group names: #{group_names.to_s}"
+    group_names
+  end
+
+  def gid_to_gname(gid)
+    @logger.debug "Getting a name for GID #{gid.inspect}"
+    gname = nil
+
+    @group_pool.each do |group|
+      if group['ID'].to_i == gid.to_i
+        gname = group['NAME']
+        break
+      end
+    end
+    raise "GID #{gid.inspect} not found!" unless gname
+
+    @logger.debug "Group name: #{gname.inspect}"
+    gname
+  end
+
+  def gname_to_gid(gname)
+    @logger.debug "Getting a GID for #{gname.inspect}"
+    gid = nil
+
+    @group_pool.each do |group|
+      if group['NAME'] == gname
+        gid = group['ID']
+        break
+      end
+    end
+    raise "GNAME #{gname.inspect} not found!" unless gid
+
+    @logger.debug "GID: #{gid.inspect}"
+    gid
+  end
+
+  def perun_group_names(perun_users)
+    @logger.debug "Getting group names from Perun"
+    perun_groups = perun_users.collect { |p_user| p_user.groups }
+    perun_groups.flatten!
+    perun_groups.uniq!
+
+    @logger.debug "Group names: #{perun_groups.to_s}"
+    perun_groups
+  end
+
+  def check_groups(one_groups, perun_groups)
+    @logger.debug "Checking groups from Perun against ONE groups: #{one_groups.to_s}"
+    @logger.debug "Perun groups: #{perun_groups.to_s}"
+
+    if perun_groups.include?('oneadmin') || perun_groups.include?('users')
+      raise "Group #{p_group.inspect} is not allowed!"
+    end
+
+    perun_groups.each do |p_group|
+      raise "Group #{p_group.inspect} is not allowed!" unless one_groups.include?(p_group)
+    end
+  end
+
+  def check_user(perun_user)
+    @logger.debug "Checking user #{perun_user.login.inspect} from Perun"
+
+    if perun_user.login.include?('oneadmin') || perun_user.login.include?('serveradmin')
+      raise "User #{perun_user.login.inspect} is not allowed!"
+    end
+
+    if perun_user.groups.empty?
+      raise "User #{perun_user.login.inspect} is not a member of any group!"
+    end
+
+    if perun_user.krb_principals.empty? || perun_user.cert_dns.empty?
+      raise "User #{perun_user.login.inspect} doesn't have required credentials!"
+    end
+  end
+
+  def add_user(user_data)
+    #
+  end
+
+  def update_user(user_data)
+    #
+  end
+
+  def update_user_properties(user_data)
+  end
+
+  def remove_user(username)
+    @logger.debug "Removing user #{username.inspect} from ONE"
+    if username.include?('oneadmin')
+      raise "Cannot remove #{username.inspect}!"
+    end
+
+    user_data = uname_to_data(username)
+    user_groups = user_group_names(user_data)
+    if user_groups.include?('oneadmin') || user_groups.include?('users')
+      raise "Cannot remove #{username.inspect}! It's a member of 'oneadmin' or 'users' group."
+    end
+
+    kill_vms(user_data['ID'])
+    remove_images(user_data['ID'])
+    remove_networks(user_data['ID'])
+
+    rc = user_data.delete
+    check_retval(rc)
+  end
+
+  def uname_to_data(username)
+    @logger.debug "Getting an object for #{username.inspect}"
+    user = nil
+
+    @user_pool.each do |one_user|
+      if one_user['NAME'] == username
+        user = one_user
+        break
+      end
+    end
+    raise "UNAME #{username.inspect} is not found!" unless user
+
+    user
+  end
+
+  def remove_user_group(username, group)
+    # TODO
+  end
+
+  def kill_vms(uid)
+    # TODO
+  end
+
+  def remove_images(uid)
+    # TODO
+  end
+
+  def remove_networks(uid)
+    # TODO
+  end
+
+  class << self
+
+    def user_pool(client, logger)
+      logger.debug "Getting UserPool"
+      user_pool = ::OpenNebula::UserPool.new(client)
+      rc = user_pool.info
+      check_retval(rc)
+
+      user_pool
+    end
+
+    def group_pool(client, logger)
+      logger.debug "Getting GroupPool"
+      group_pool = ::OpenNebula::GroupPool.new(client)
+      rc = group_pool.info
+      check_retval(rc)
+
+      group_pool
+    end
+
+    def check_retval(rc)
+      raise rc.message if ::OpenNebula.is_error?(rc)
+    end
+
+  end
+
+end
