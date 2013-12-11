@@ -21,7 +21,7 @@ class MetacloudExport::Opts
       options.target!.password = "onepass"
     end
 
-    options.log!.out = STDERR
+    options.log!.out = STDOUT
     options.log!.level = Logger::ERROR
 
     opts = OptionParser.new do |opts|
@@ -63,8 +63,8 @@ class MetacloudExport::Opts
       opts.on("-l",
               "--log-to OUTPUT",
               LOG_OUTPUTS,
-              "Log to the specified device, defaults to 'stderr'") do |log_to|
-        options.log.out = STDOUT if log_to == :stdout
+              "Log to the specified device, defaults to 'stdout'") do |log_to|
+        options.log.out = STDERR if log_to == :stderr
       end
 
       opts.on("-b",

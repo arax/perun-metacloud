@@ -50,7 +50,7 @@ function process {
 	cd $DIR
 
 	# Run Forrest, Run!
-	OUTPUT=`./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug 2>&1`
+	OUTPUT=`./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug`
 	RET[0]=$?
 	RET[1]=$OUTPUT
 
