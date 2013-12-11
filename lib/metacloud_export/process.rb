@@ -1,6 +1,6 @@
 class MetacloudExport::Process
 
-  DEFAULT_AUTHN_DRIVER = "x509"
+  DEFAULT_AUTHN_DRIVER = ::OpenNebula::User::X509_AUTH || "x509"
 
   def initialize(source, target, logger)
     parsed = JSON.parse(source.read)
@@ -25,12 +25,12 @@ class MetacloudExport::Process
     perun_users = @source.users.collect { |p_user| p_user.login }
     one_users = existing_user_names(perun_groups)
 
-    @logger.debug "Clean-up of old ONE accounts"
+    @logger.info "Clean-up of old ONE accounts"
     one_users.each do |one_user|
       remove_user(one_user) unless perun_users.include?(one_user)
     end
 
-    @logger.debug "Adding/Updating ONE accounts"
+    @logger.info "Adding/Updating ONE accounts"
     @source.users.each do |perun_user|
       check_user(perun_user)
 
@@ -151,14 +151,86 @@ class MetacloudExport::Process
   end
 
   def add_user(user_data)
-    #
+    @logger.info "Creating user #{user_data.login.inspect} in ONE"
+
+    password = user_creds_to_passwd(user_data)
+
+    @logger.debug "With passwd: #{password.inspect}"
+    user = ::OpenNebula::User.new(::OpenNebula::User.build_xml, @client)
+    rc = user.allocate(user_data.login, password, DEFAULT_AUTHN_DRIVER)
+    check_retval(rc)
+
+    # groups
+    user_set_groups(user, user_data.groups)
+
+    # TODO: properties
+  end
+
+  def user_set_groups(user, groups)
+    @logger.info "Setting grp: #{user_data.groups.first.inspect}"
+    primary_grp = groups.first
+    rc = user.chgrp(gname_to_gid(primary_grp))
+    check_retval(rc)
+
+    groups.each do |grp|
+      next if grp == primary_grp
+      @logger.debug "Also adding grp: #{grp.inspect}"
+      rc = user.addgroup(gname_to_gid(grp))
+      check_retval(rc)
+    end
+  end
+
+  def user_creds_to_passwd(user_data)
+    password = []
+
+    password << user_data.krb_principals.join('|')
+    password << user_data.cert_dns.join('|')
+    password = password.join('|')
+
+    password
   end
 
   def update_user(user_data)
-    #
+    @logger.info "Updating user #{user_data.login.inspect} in ONE"
+    one_user = uname_to_data(user_data.login)
+
+    # auth driver
+    if one_user['AUTH_DRIVER'] != DEFAULT_AUTHN_DRIVER
+      @logger.debug "Changing AUTH_DRIVER from #{one_user['AUTH_DRIVER'].inspect} to #{DEFAULT_AUTHN_DRIVER.inspect}"
+      rc = one_user.chauth(DEFAULT_AUTHN_DRIVER)
+      check_retval(rc)
+    end
+
+    # passwd
+    pw = user_creds_to_passwd(user_data)
+    if one_user['PASSWORD'] != pw
+      @logger.debug "Changing PASSWD from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
+      rc = one_user.passwd(pw)
+      check_retval(rc)
+    end
+
+    # add groups
+    user_set_groups(one_user, user_data.groups)
+
+    # del groups
+    one_grps = user_group_names(one_user)
+    grps_to_del = one_grps - user_data.groups
+    user_del_groups(one_user, grps_to_del)
+
+    # TODO: properties
   end
 
-  def update_user_properties(user_data)
+  def user_del_groups(user, groups)
+    @logger.info "Deleting groups for #{user['NAME'].inspect}"
+    @logger.debug "Del. groups: #{groups.to_s}"
+    groups.each do |del_group|
+      rc = user.delgroup(gname_to_gid(del_group))
+      check_retval(rc)
+    end
+  end
+
+  def user_set_properties(user_data)
+    # TODO
   end
 
   def remove_user(username)
@@ -194,10 +266,6 @@ class MetacloudExport::Process
     raise "UNAME #{username.inspect} is not found!" unless user
 
     user
-  end
-
-  def remove_user_group(username, group)
-    # TODO
   end
 
   def kill_vms(uid)
