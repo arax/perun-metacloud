@@ -167,7 +167,7 @@ class MetacloudExport::Process
   end
 
   def user_set_groups(user, groups)
-    @logger.info "Setting grp: #{user_data.groups.first.inspect}"
+    @logger.info "Setting grp: #{groups.first.inspect}"
     primary_grp = groups.first
     rc = user.chgrp(gname_to_gid(primary_grp))
     self.class.check_retval(rc)

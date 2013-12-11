@@ -20,5 +20,7 @@ begin
   process.run
 rescue Exception => ex
   puts ex.message
+  raise ex if options.debug
+
   exit! 255
 end
