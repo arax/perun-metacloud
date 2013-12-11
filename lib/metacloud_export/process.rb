@@ -176,7 +176,12 @@ class MetacloudExport::Process
       next if grp == primary_grp
       @logger.debug "Also adding grp: #{grp.inspect}"
       rc = user.addgroup(gname_to_gid(grp))
-      self.class.check_retval(rc)
+
+      if ::OpenNebula::is_error?(rc)
+        unless rc.message.include?('User is already in this group')
+          self.class.check_retval(rc)
+        end
+      end
     end
   end
 
