@@ -46,6 +46,6 @@ PROTOCOL_VERSION=`/usr/bin/env ruby -I ${DIR}/lib -e 'require "metacloud_export/
 create_lock
 
 function process {
-	OUTPUT=`${DIR}/process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export`
+	OUTPUT=`${DIR}/process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug`
 	catch_error ($? $OUTPUT)
 }
