@@ -1,7 +1,8 @@
 class MetacloudExport::Process
 
   DEFAULT_AUTHN_DRIVER = ::OpenNebula::User::X509_AUTH || "x509"
-  EXCLUDED_ONE_GROUPS = ['oneadmin', 'users', 'devel'].freeze
+  EXCLUDED_ONE_GROUPS = ['oneadmin', 'devel'].freeze
+  NO_ADD_GROUPS = (EXCLUDED_ONE_GROUPS + ['users']).freeze
 
   def initialize(source, target, logger)
     parsed = JSON.parse(source.read)
@@ -128,8 +129,8 @@ class MetacloudExport::Process
   end
 
   def check_groups(one_groups, perun_groups)
-    if perun_groups.include?('oneadmin') || perun_groups.include?('users')
-      raise "Group #{p_group.inspect} is not allowed!"
+    unless (perun_groups & NO_ADD_GROUPS).empty?
+      raise "A group in #{perun_groups.to_s} is not allowed!"
     end
 
     perun_groups.each do |p_group|
@@ -172,8 +173,10 @@ class MetacloudExport::Process
   end
 
   def user_set_groups(user, groups)
-    primary_grp = groups.first
-    unless user['GNAME'] == primary_grp
+    primary_grp = user['GNAME']
+
+    unless groups.include?(primary_grp)
+      primary_grp = groups.first
       @logger.debug "Adding #{user['NAME'].inspect} to primary group #{primary_grp.inspect}"
 
       rc = user.chgrp(gname_to_gid(primary_grp))
@@ -182,6 +185,7 @@ class MetacloudExport::Process
 
     groups.each do |grp|
       next if grp == primary_grp
+
       @logger.debug "Adding #{user['NAME'].inspect} to secondary group #{grp.inspect}"
       rc = user.addgroup(gname_to_gid(grp))
 
@@ -248,13 +252,13 @@ class MetacloudExport::Process
 
   def remove_user(username)
     if username.include?('oneadmin')
-      raise "Cannot remove #{username.inspect}!"
+      raise "Cannot remove user #{username.inspect}!"
     end
 
     user_data = uname_to_data(username)
     user_groups = user_group_names(user_data)
-    if user_groups.include?('oneadmin') || user_groups.include?('users')
-      raise "Cannot remove #{username.inspect}! It's a member of 'oneadmin' or 'users' group."
+    unless (user_groups & EXCLUDED_ONE_GROUPS).empty?
+      raise "Cannot remove user #{username.inspect}! It's a member of #{EXCLUDED_ONE_GROUPS.to_s}."
     end
 
     kill_vms(user_data['ID'])
