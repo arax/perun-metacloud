@@ -234,7 +234,7 @@ class MetacloudExport::Process
     # del groups
     one_grps = user_group_names(one_user)
     grps_to_del = one_grps - user_data.groups
-    user_del_groups(one_user, grps_to_del)
+    user_del_groups(one_user, grps_to_del) unless grps_to_del.empty?
 
     # properties
     user_set_properties(one_user, user_data)
