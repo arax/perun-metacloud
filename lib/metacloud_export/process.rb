@@ -170,9 +170,12 @@ class MetacloudExport::Process
 
   def user_set_groups(user, groups)
     @logger.info "Adding #{user['NAME'].inspect} to primary group #{groups.first.inspect}"
+
     primary_grp = groups.first
-    rc = user.chgrp(gname_to_gid(primary_grp))
-    self.class.check_retval(rc, @logger)
+    unless user['GNAME'] == primary_grp
+      rc = user.chgrp(gname_to_gid(primary_grp))
+      self.class.check_retval(rc, @logger)
+    end
 
     groups.each do |grp|
       next if grp == primary_grp
