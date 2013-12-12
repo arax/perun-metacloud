@@ -5,6 +5,8 @@ require 'bundler/setup'
 
 require 'metacloud-export'
 
+logger = nil
+
 begin
   options = MetacloudExport::Opts.parse ARGV
 
@@ -19,7 +21,7 @@ begin
   )
   process.run
 rescue Exception => ex
-  puts ex.message
+  logger.error ex.message if logger
   raise ex if options.debug
 
   exit! 255

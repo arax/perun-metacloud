@@ -22,7 +22,7 @@ class MetacloudExport::Opts
     end
 
     options.log!.out = STDOUT
-    options.log!.level = Logger::ERROR
+    options.log!.level = Logger::INFO
 
     opts = OptionParser.new do |opts|
       opts.banner = %{Usage: process-metacloud_export.rb [OPTIONS]}

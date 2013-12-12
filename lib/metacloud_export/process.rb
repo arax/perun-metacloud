@@ -18,13 +18,14 @@ class MetacloudExport::Process
   end
 
   def run
+    @logger.info "Starting propagation"
     perun_groups = perun_group_names(@source.users)
-    one_groups = existing_group_names
+    managed_groups = existing_group_names(EXCLUDED_ONE_GROUPS)
 
-    check_groups(one_groups, perun_groups)
+    check_groups(managed_groups, perun_groups)
 
     perun_users = @source.users.collect { |p_user| p_user.login }
-    one_users = existing_user_names(perun_groups)
+    one_users = existing_user_names(managed_groups)
 
     @logger.info "Clean-up of old ONE accounts"
     one_users.each do |one_user|
@@ -36,8 +37,10 @@ class MetacloudExport::Process
       check_user(perun_user)
 
       if one_users.include?(perun_user.login)
+        @logger.info "Updating user #{perun_user.login.inspect} in ONE"
         update_user(perun_user)
       else
+        @logger.info "Creating user #{perun_user.login.inspect} in ONE"
         add_user(perun_user)
       end
     end
@@ -45,46 +48,43 @@ class MetacloudExport::Process
 
   private
 
-  def existing_group_names
-    @logger.debug "Getting group names from GroupPool"
+  def existing_group_names(excl)
     groups = []
 
-    @group_pool.each { |group| groups << group['NAME'] }
+    @group_pool.each { |group|
+      groups << group['NAME'] unless excl.include?(group['NAME'])
+    }
 
-    @logger.debug "Group names: #{groups.to_s}"
+    @logger.debug "Getting existing groups in ONE, excluding #{excl.to_s}"
+    @logger.debug "Names of existing groups in ONE: #{groups.to_s}"
     groups
   end
 
-  def existing_user_names(perun_groups)
-    # TODO: fix!
-    perun_groups = existing_group_names - EXCLUDED_ONE_GROUPS
-
-    @logger.debug "Getting user names for #{perun_groups.to_s} from UserPool"
+  def existing_user_names(managed_groups)
     users = []
 
     @user_pool.each do |user| 
-      rest = user_group_names(user) - perun_groups
+      rest = user_group_names(user) - managed_groups
       users << user['NAME'] if rest.empty?
     end
 
-    @logger.debug "User names: #{users.to_s}"
+    @logger.debug "Getting existing users in ONE, from Perun-managed groups #{managed_groups.to_s}"
+    @logger.debug "Names of existing users in ONE: #{users.to_s}"
     users
   end
 
   def user_group_names(user)
-    @logger.debug "Getting group names for #{user['NAME'].inspect}"
     group_names = []
 
     user.each_xpath("GROUPS/ID") do |gid|
       group_names << gid_to_gname(gid.to_i)
     end
 
-    @logger.debug "Group names: #{group_names.to_s}"
+    @logger.debug "ONE groups for #{user['NAME'].inspect}: #{group_names.to_s}"
     group_names
   end
 
   def gid_to_gname(gid)
-    @logger.debug "Getting a name for GID #{gid.inspect}"
     gname = nil
 
     @group_pool.each do |group|
@@ -95,12 +95,11 @@ class MetacloudExport::Process
     end
     raise "GID #{gid.inspect} not found!" unless gname
 
-    @logger.debug "Group name: #{gname.inspect}"
+    @logger.debug "GID[#{gid.inspect}] has been recognized as #{gname.inspect}"
     gname
   end
 
   def gname_to_gid(gname)
-    @logger.debug "Getting a GID for #{gname.inspect}"
     gid = nil
 
     @group_pool.each do |group|
@@ -111,24 +110,21 @@ class MetacloudExport::Process
     end
     raise "GNAME #{gname.inspect} not found!" unless gid
 
-    @logger.debug "GID: #{gid.inspect}"
+    @logger.debug "GNAME[#{gname.inspect}] has been resolved to #{gid.inspect}"
     gid
   end
 
   def perun_group_names(perun_users)
-    @logger.debug "Getting group names from Perun"
     perun_groups = perun_users.collect { |p_user| p_user.groups }
     perun_groups.flatten!
     perun_groups.uniq!
 
-    @logger.debug "Group names: #{perun_groups.to_s}"
+    @logger.debug "Getting all user groups from Perun"
+    @logger.debug "All user groups from Perun: #{perun_groups.to_s}"
     perun_groups
   end
 
   def check_groups(one_groups, perun_groups)
-    @logger.debug "Checking groups from Perun against ONE groups: #{one_groups.to_s}"
-    @logger.debug "Perun groups: #{perun_groups.to_s}"
-
     if perun_groups.include?('oneadmin') || perun_groups.include?('users')
       raise "Group #{p_group.inspect} is not allowed!"
     end
@@ -139,7 +135,7 @@ class MetacloudExport::Process
   end
 
   def check_user(perun_user)
-    @logger.debug "Checking user #{perun_user.login.inspect} from Perun"
+    @logger.debug "Validating user #{perun_user.login.inspect} from Perun"
 
     if perun_user.login.include?('oneadmin') || perun_user.login.include?('serveradmin')
       raise "User #{perun_user.login.inspect} is not allowed!"
@@ -155,14 +151,12 @@ class MetacloudExport::Process
   end
 
   def add_user(user_data)
-    @logger.info "Creating user #{user_data.login.inspect} in ONE"
-
     password = user_creds_to_passwd(user_data)
 
-    @logger.debug "With passwd: #{password.inspect}"
+    @logger.debug "Creating #{user_data.login.inspect} with passwd: #{password.inspect}"
     user = ::OpenNebula::User.new(::OpenNebula::User.build_xml, @client)
     rc = user.allocate(user_data.login, password, DEFAULT_AUTHN_DRIVER)
-    self.class.check_retval(rc)
+    self.class.check_retval(rc, @logger)
 
     # groups
     user_set_groups(user, user_data.groups)
@@ -171,19 +165,19 @@ class MetacloudExport::Process
   end
 
   def user_set_groups(user, groups)
-    @logger.info "Setting grp: #{groups.first.inspect}"
+    @logger.info "Adding #{user['NAME']} to primary group #{groups.first.inspect}"
     primary_grp = groups.first
     rc = user.chgrp(gname_to_gid(primary_grp))
-    self.class.check_retval(rc)
+    self.class.check_retval(rc, @logger)
 
     groups.each do |grp|
       next if grp == primary_grp
-      @logger.debug "Also adding grp: #{grp.inspect}"
+      @logger.debug "Adding #{user['NAME']} to secondary group #{grp.inspect}"
       rc = user.addgroup(gname_to_gid(grp))
 
       if ::OpenNebula::is_error?(rc)
         unless rc.message.include?('User is already in this group')
-          self.class.check_retval(rc)
+          self.class.check_retval(rc, @logger)
         end
       end
     end
@@ -200,22 +194,22 @@ class MetacloudExport::Process
   end
 
   def update_user(user_data)
-    @logger.info "Updating user #{user_data.login.inspect} in ONE"
     one_user = uname_to_data(user_data.login)
 
     # auth driver
     if one_user['AUTH_DRIVER'] != DEFAULT_AUTHN_DRIVER
-      @logger.debug "Changing AUTH_DRIVER from #{one_user['AUTH_DRIVER'].inspect} to #{DEFAULT_AUTHN_DRIVER.inspect}"
+      @logger.debug "Changing AUTH_DRIVER of #{one_user['NAME'].inspect} " \
+                    "from #{one_user['AUTH_DRIVER'].inspect} to #{DEFAULT_AUTHN_DRIVER.inspect}"
       rc = one_user.chauth(DEFAULT_AUTHN_DRIVER)
-      self.class.check_retval(rc)
+      self.class.check_retval(rc, @logger)
     end
 
     # passwd
     pw = user_creds_to_passwd(user_data)
     if one_user['PASSWORD'] != pw
-      @logger.debug "Changing PASSWD from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
+      @logger.debug "Changing PASSWD of #{one_user['NAME'].inspect} from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
       rc = one_user.passwd(pw)
-      self.class.check_retval(rc)
+      self.class.check_retval(rc, @logger)
     end
 
     # add groups
@@ -230,11 +224,10 @@ class MetacloudExport::Process
   end
 
   def user_del_groups(user, groups)
-    @logger.info "Deleting groups for #{user['NAME'].inspect}"
-    @logger.debug "Del. groups: #{groups.to_s}"
+    @logger.debug "Deleting groups #{groups.to_s} of #{user['NAME'].inspect}"
     groups.each do |del_group|
       rc = user.delgroup(gname_to_gid(del_group))
-      self.class.check_retval(rc)
+      self.class.check_retval(rc, @logger)
     end
   end
 
@@ -243,7 +236,6 @@ class MetacloudExport::Process
   end
 
   def remove_user(username)
-    @logger.debug "Removing user #{username.inspect} from ONE"
     if username.include?('oneadmin')
       raise "Cannot remove #{username.inspect}!"
     end
@@ -259,11 +251,10 @@ class MetacloudExport::Process
     remove_networks(user_data['ID'])
 
     rc = user_data.delete
-    self.class.check_retval(rc)
+    self.class.check_retval(rc, @logger)
   end
 
   def uname_to_data(username)
-    @logger.debug "Getting an object for #{username.inspect}"
     user = nil
 
     @user_pool.each do |one_user|
@@ -292,24 +283,23 @@ class MetacloudExport::Process
   class << self
 
     def user_pool(client, logger)
-      logger.debug "Getting UserPool"
       user_pool = ::OpenNebula::UserPool.new(client)
       rc = user_pool.info
-      check_retval(rc)
+      check_retval(rc, logger)
 
       user_pool
     end
 
     def group_pool(client, logger)
-      logger.debug "Getting GroupPool"
       group_pool = ::OpenNebula::GroupPool.new(client)
       rc = group_pool.info
-      check_retval(rc)
+      check_retval(rc, logger)
 
       group_pool
     end
 
-    def check_retval(rc)
+    def check_retval(rc, logger)
+      logger.error rc.message
       raise rc.message if ::OpenNebula.is_error?(rc)
     end
 
