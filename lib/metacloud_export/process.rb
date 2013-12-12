@@ -29,7 +29,10 @@ class MetacloudExport::Process
 
     @logger.info "Clean-up of old ONE accounts"
     one_users.each do |one_user|
-      remove_user(one_user) unless perun_users.include?(one_user)
+      unless perun_users.include?(one_user)
+        @logger.info "Deleting user #{one_user.inspect} from ONE"
+        remove_user(one_user)
+      end
     end
 
     @logger.info "Adding/Updating ONE accounts"
