@@ -21,8 +21,6 @@ Gem::Specification.new do |gem|
   gem.add_dependency 'json'
   gem.add_dependency 'hashie'
   gem.add_dependency 'nokogiri', '~>1.6.0'
-  gem.add_dependency 'activesupport', '~>4.0.0'
-  gem.add_dependency 'settingslogic'
   gem.add_dependency 'opennebula', '~> 4.4.0'
 
   gem.required_ruby_version     = '>= 1.9.3'
