@@ -44,6 +44,8 @@ class MetacloudExport::Process
         add_user(perun_user)
       end
     end
+
+    @logger.info "Propagation finished"
   end
 
   private
