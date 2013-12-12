@@ -43,6 +43,10 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 PROTOCOL_VERSION=`/usr/bin/env ruby -I ${DIR}/lib -e 'require "metacloud_export/version"; puts MetacloudExport::VERSION'`
 
+if [ -f "$HOME/.opennebula" ]; then
+	. $HOME/.opennebula
+fi
+
 create_lock
 
 function process {
