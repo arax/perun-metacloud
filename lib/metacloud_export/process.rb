@@ -55,8 +55,7 @@ class MetacloudExport::Process
       groups << group['NAME'] unless excl.include?(group['NAME'])
     }
 
-    @logger.debug "Getting existing groups in ONE, excluding #{excl.to_s}"
-    @logger.debug "Names of existing groups in ONE: #{groups.to_s}"
+    @logger.debug "Getting existing groups in ONE whilst excluding #{excl.to_s}: #{groups.to_s}"
     groups
   end
 
@@ -68,8 +67,8 @@ class MetacloudExport::Process
       users << user['NAME'] if rest.empty?
     end
 
-    @logger.debug "Getting existing users in ONE, from Perun-managed groups #{managed_groups.to_s}"
-    @logger.debug "Names of existing users in ONE: #{users.to_s}"
+    @logger.debug "Getting existing users in ONE, from Perun-managed " \
+                  "groups #{managed_groups.to_s}: #{users.to_s}"
     users
   end
 
@@ -95,7 +94,7 @@ class MetacloudExport::Process
     end
     raise "GID #{gid.inspect} not found!" unless gname
 
-    @logger.debug "GID[#{gid.inspect}] has been recognized as #{gname.inspect}"
+    @logger.debug "GID[#{gid.inspect}] has been recognized as GNAME[#{gname.inspect}]"
     gname
   end
 
@@ -110,7 +109,7 @@ class MetacloudExport::Process
     end
     raise "GNAME #{gname.inspect} not found!" unless gid
 
-    @logger.debug "GNAME[#{gname.inspect}] has been resolved to #{gid.inspect}"
+    @logger.debug "GNAME[#{gname.inspect}] has been resolved to GID[#{gid.inspect}]"
     gid
   end
 
@@ -119,8 +118,7 @@ class MetacloudExport::Process
     perun_groups.flatten!
     perun_groups.uniq!
 
-    @logger.debug "Getting all user groups from Perun"
-    @logger.debug "All user groups from Perun: #{perun_groups.to_s}"
+    @logger.debug "Getting all user groups from Perun: #{perun_groups.to_s}"
     perun_groups
   end
 
@@ -169,14 +167,14 @@ class MetacloudExport::Process
   end
 
   def user_set_groups(user, groups)
-    @logger.info "Adding #{user['NAME']} to primary group #{groups.first.inspect}"
+    @logger.info "Adding #{user['NAME'].inspect} to primary group #{groups.first.inspect}"
     primary_grp = groups.first
     rc = user.chgrp(gname_to_gid(primary_grp))
     self.class.check_retval(rc, @logger)
 
     groups.each do |grp|
       next if grp == primary_grp
-      @logger.debug "Adding #{user['NAME']} to secondary group #{grp.inspect}"
+      @logger.debug "Adding #{user['NAME'].inspect} to secondary group #{grp.inspect}"
       rc = user.addgroup(gname_to_gid(grp))
 
       if ::OpenNebula::is_error?(rc)
@@ -211,7 +209,8 @@ class MetacloudExport::Process
     # passwd
     pw = user_creds_to_passwd(user_data)
     if one_user['PASSWORD'] != pw
-      @logger.debug "Changing PASSWD of #{one_user['NAME'].inspect} from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
+      @logger.debug "Changing PASSWD of #{one_user['NAME'].inspect} " \
+                    "from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
       rc = one_user.passwd(pw)
       self.class.check_retval(rc, @logger)
     end
