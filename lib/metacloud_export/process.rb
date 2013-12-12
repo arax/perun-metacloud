@@ -80,7 +80,7 @@ class MetacloudExport::Process
       group_names << gid_to_gname(gid.to_i)
     end
 
-    @logger.debug "ONE groups for #{user['NAME'].inspect}: #{group_names.to_s}"
+    @logger.debug "ONE groups for user #{user['NAME'].inspect}: #{group_names.to_s}"
     group_names
   end
 
@@ -156,6 +156,10 @@ class MetacloudExport::Process
     @logger.debug "Creating #{user_data.login.inspect} with passwd: #{password.inspect}"
     user = ::OpenNebula::User.new(::OpenNebula::User.build_xml, @client)
     rc = user.allocate(user_data.login, password, DEFAULT_AUTHN_DRIVER)
+    self.class.check_retval(rc, @logger)
+
+    # refresh local cache
+    rc = user.info
     self.class.check_retval(rc, @logger)
 
     # groups
