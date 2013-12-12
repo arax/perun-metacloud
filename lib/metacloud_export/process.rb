@@ -299,8 +299,10 @@ class MetacloudExport::Process
     end
 
     def check_retval(rc, logger)
-      logger.error rc.message
-      raise rc.message if ::OpenNebula.is_error?(rc)
+      if ::OpenNebula.is_error?(rc)
+        logger.error rc.message
+        raise rc.message
+      end
     end
 
     def escape_dn(dn)
