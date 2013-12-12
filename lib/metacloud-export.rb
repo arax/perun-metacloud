@@ -5,6 +5,8 @@ require 'optparse'
 require 'uri'
 require 'hashie/mash'
 require 'logger'
+require 'erb'
+require 'date'
 require 'opennebula'
 
 require 'metacloud_export/version'

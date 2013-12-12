@@ -169,7 +169,8 @@ class MetacloudExport::Process
     # groups
     user_set_groups(user, user_data.groups)
 
-    # TODO: properties
+    # properties
+    user_set_properties(user, user_data)
   end
 
   def user_set_groups(user, groups)
@@ -235,7 +236,8 @@ class MetacloudExport::Process
     grps_to_del = one_grps - user_data.groups
     user_del_groups(one_user, grps_to_del)
 
-    # TODO: properties
+    # properties
+    user_set_properties(one_user, user_data)
   end
 
   def user_del_groups(user, groups)
@@ -246,8 +248,18 @@ class MetacloudExport::Process
     end
   end
 
-  def user_set_properties(user_data)
-    # TODO
+  def user_set_properties(user, user_data)
+    file = "#{File.expand_path('..', __FILE__)}/templates/user_properties.erb"
+    template = ERB.new(File.new(file).read, nil, '-')
+
+    old_token_password = ""
+    old_token_password = user['TEMPLATE/TOKEN_PASSWORD'] if user['TEMPLATE/TOKEN_PASSWORD']
+
+    props = template.result(binding)
+
+    @logger.debug "Updating properties for #{user['NAME'].inspect} with #{props.inspect}"
+    rc = user.update(props)
+    self.class.check_retval(rc, @logger)
   end
 
   def remove_user(username)
