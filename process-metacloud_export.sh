@@ -50,9 +50,14 @@ function process {
 	cd $DIR
 
 	# Run Forrest, Run!
-	OUTPUT=`./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug`
+	./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug
 	RET[0]=$?
-	RET[1]=$OUTPUT
+
+	if [ ${RET[0]} -eq 0 ]; then
+		RET[1]="Propagation successful."
+	else
+		RET[1]="Propagation failed!"
+	fi
 
 	cd $OLD_DIR
 	catch_error RET
