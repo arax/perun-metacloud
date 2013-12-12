@@ -60,5 +60,5 @@ function process {
 	fi
 
 	cd $OLD_DIR
-	catch_error RET
+	log_msg RET
 }
