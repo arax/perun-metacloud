@@ -244,7 +244,12 @@ class MetacloudExport::Process
     @logger.debug "Deleting groups #{groups.to_s} of #{user['NAME'].inspect}"
     groups.each do |del_group|
       rc = user.delgroup(gname_to_gid(del_group))
-      self.class.check_retval(rc, @logger)
+
+      if ::OpenNebula::is_error?(rc)
+        unless rc.message.include?('User is not part of this group')
+          self.class.check_retval(rc, @logger)
+        end
+      end
     end
   end
 
