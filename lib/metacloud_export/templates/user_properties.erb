@@ -1,4 +1,5 @@
 SSH_PUBLIC_KEY="<%= user_data.ssh_keys.join("\n") -%>"
+SSH_KEY="<%= user_data.ssh_keys.join("\n") -%>"
 EMAIL="<%= user_data.mail -%>"
 NAME="<%= user_data.full_name -%>"
 X509_DN="<%= user_data.cert_dns.join('|') -%>"
