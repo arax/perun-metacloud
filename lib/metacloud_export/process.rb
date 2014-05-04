@@ -16,6 +16,7 @@ class MetacloudExport::Process
 
     @user_pool = self.class.user_pool(@client, @logger)
     @group_pool = self.class.group_pool(@client, @logger)
+    @vm_pool = self.class.vm_pool(@client, @logger)
   end
 
   def run
@@ -68,7 +69,7 @@ class MetacloudExport::Process
   def existing_user_names(managed_groups)
     users = []
 
-    @user_pool.each do |user| 
+    @user_pool.each do |user|
       rest = user_group_names(user) - managed_groups
       users << user['NAME'] if rest.empty?
     end
@@ -301,7 +302,17 @@ class MetacloudExport::Process
   end
 
   def kill_vms(uid)
-    # TODO
+    uid = uid.to_i
+    raise "Cannot remove VMs for a user without an ID > 0! [#{uid.inspect}]" if uid == 0
+
+    rc = @vm_pool.info(uid)
+    self.class.check_retval(rc, @logger)
+
+    @vm_pool.each do |vm|
+      next unless vm['UID'].to_i == uid
+      @logger.debug "Killing VM [#{vm.id.inspect}] of user [#{uid.inspect}]"
+      vm.shutdown(hard = true)
+    end
   end
 
   def remove_images(uid)
@@ -328,6 +339,14 @@ class MetacloudExport::Process
       check_retval(rc, logger)
 
       group_pool
+    end
+
+    def vm_pool(client, logger)
+      vm_pool = ::OpenNebula::VirtualMachinePool.new(client)
+      rc = vm_pool.info_all
+      check_retval(rc, logger)
+
+      vm_pool
     end
 
     def check_retval(rc, logger)
