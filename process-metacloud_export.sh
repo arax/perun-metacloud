@@ -54,7 +54,7 @@ function process {
 	cd $DIR
 
 	# Run Forrest, Run!
-	./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export --debug
+	./process-metacloud_export.rb --source file://${WORK_DIR}/metacloud_export #--debug
 	RET[0]=$?
 
 	if [ ${RET[0]} -eq 0 ]; then

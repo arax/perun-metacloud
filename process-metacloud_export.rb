@@ -5,7 +5,8 @@ require 'bundler/setup'
 
 require 'metacloud-export'
 
-logger = nil
+logger = Logger.new(STDERR)
+logger.level = Logger::DEBUG
 
 begin
   options = MetacloudExport::Opts.parse ARGV
@@ -22,7 +23,7 @@ begin
   process.run
 rescue Exception => ex
   logger.error ex.message if logger
-  raise ex if options.debug
+  raise ex if options.nil? || options.debug
 
   exit! 255
 end
