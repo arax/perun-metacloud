@@ -286,9 +286,9 @@ class MetacloudExport::Process
     template = ERB.new(File.new(file).read, nil, '-')
 
     old_token_password = user['TEMPLATE/TOKEN_PASSWORD'] ? user['TEMPLATE/TOKEN_PASSWORD'] : ""
-    old_default_view = user['TEMPLATE/DEFAULT_VIEW'] ? user['TEMPLATE/DEFAULT_VIEW'] : "cloud"
-    old_lang = user['TEMPLATE/LANG'] ? user['TEMPLATE/LANG'] : "en_US"
-    old_table_order = user['TEMPLATE/TABLE_ORDER'] ? user['TEMPLATE/TABLE_ORDER'] : "desc"
+    old_default_view = user['TEMPLATE/SUNSTONE/DEFAULT_VIEW'] ? user['TEMPLATE/SUNSTONE/DEFAULT_VIEW'] : "cloud"
+    old_lang = user['TEMPLATE/SUNSTONE/LANG'] ? user['TEMPLATE/SUNSTONE/LANG'] : "en_US"
+    old_table_order = user['TEMPLATE/SUNSTONE/TABLE_ORDER'] ? user['TEMPLATE/SUNSTONE/TABLE_ORDER'] : "desc"
     old_vnc_wss = "yes"
 
     props = template.result(binding)
