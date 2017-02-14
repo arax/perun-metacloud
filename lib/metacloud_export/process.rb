@@ -42,10 +42,10 @@ class MetacloudExport::Process
       check_user(perun_user)
 
       if one_users.include?(perun_user.login)
-        @logger.info "Updating user #{perun_user.login.inspect} in ONE"
+        @logger.debug "Updating user #{perun_user.login.inspect} in ONE"
         update_user(perun_user)
       else
-        @logger.info "Creating user #{perun_user.login.inspect} in ONE"
+        @logger.debug "Creating user #{perun_user.login.inspect} in ONE"
         add_user(perun_user)
       end
     end
@@ -158,7 +158,7 @@ class MetacloudExport::Process
   def add_user(user_data)
     password = user_creds_to_passwd(user_data)
 
-    @logger.debug "Creating #{user_data.login.inspect} with passwd: #{password.inspect}"
+    @logger.info "Creating #{user_data.login.inspect} with passwd: #{password.inspect}"
     user = ::OpenNebula::User.new(::OpenNebula::User.build_xml, @client)
     rc = user.allocate(user_data.login, password, DEFAULT_AUTHN_DRIVER)
     self.class.check_retval(rc, @logger)
@@ -202,8 +202,8 @@ class MetacloudExport::Process
   def user_creds_to_passwd(user_data)
     password = []
 
-    password << user_data.krb_principals.join('|')
-    password << user_data.cert_dns.join('|')
+    password << user_data.krb_principals.sort.join('|')
+    password << user_data.cert_dns.sort.join('|')
     password = password.join('|')
 
     self.class.escape_dn(password)
@@ -214,7 +214,7 @@ class MetacloudExport::Process
 
     # auth driver
     if one_user['AUTH_DRIVER'] != DEFAULT_AUTHN_DRIVER
-      @logger.debug "Changing AUTH_DRIVER of #{one_user['NAME'].inspect} " \
+      @logger.info "Changing AUTH_DRIVER of #{one_user['NAME'].inspect} " \
                     "from #{one_user['AUTH_DRIVER'].inspect} to #{DEFAULT_AUTHN_DRIVER.inspect}"
       rc = one_user.chauth(DEFAULT_AUTHN_DRIVER)
       self.class.check_retval(rc, @logger)
@@ -223,7 +223,7 @@ class MetacloudExport::Process
     # passwd
     pw = user_creds_to_passwd(user_data)
     if one_user['PASSWORD'] != pw
-      @logger.debug "Changing PASSWD of #{one_user['NAME'].inspect} " \
+      @logger.info "Changing PASSWD of #{one_user['NAME'].inspect} " \
                     "from #{one_user['PASSWORD'].inspect} to #{pw.inspect}"
       rc = one_user.passwd(pw)
       self.class.check_retval(rc, @logger)
@@ -238,11 +238,36 @@ class MetacloudExport::Process
     user_del_groups(one_user, grps_to_del) unless grps_to_del.empty?
 
     # properties
-    user_set_properties(one_user, user_data)
+    user_set_properties(one_user, user_data) if user_changed?(one_user, user_data)
+  end
+
+  def user_changed?(one_user, user_data)
+    user_key_changed?(one_user, user_data) || \
+    user_details_changed?(one_user, user_data) || \
+    user_dn_changed?(one_user, user_data) || \
+    user_krb_changed?(one_user, user_data)
+  end
+
+  def user_key_changed?(one_user, user_data)
+    one_user['TEMPLATE/SSH_PUBLIC_KEY'] != user_data.ssh_keys.reject { |elm| elm.include?('"') }.sort.join("\n")
+  end
+
+  def user_details_changed?(one_user, user_data)
+    one_user['TEMPLATE/EMAIL'] != user_data.mail \
+      || \
+    one_user['TEMPLATE/NAME'] != user_data.full_name
+  end
+
+  def user_dn_changed?(one_user, user_data)
+    one_user['TEMPLATE/X509_DN'] != user_data.cert_dns.sort.join('|')
+  end
+
+  def user_krb_changed?(one_user, user_data)
+    one_user['TEMPLATE/KRB_PRINCIPAL'] != user_data.krb_principals.sort.join('|')
   end
 
   def user_del_groups(user, groups)
-    @logger.debug "Deleting groups #{groups.to_s} of #{user['NAME'].inspect}"
+    @logger.info "Deleting groups #{groups.to_s} of #{user['NAME'].inspect}"
     groups.each do |del_group|
       rc = user.delgroup(gname_to_gid(del_group))
 
@@ -255,11 +280,16 @@ class MetacloudExport::Process
   end
 
   def user_set_properties(user, user_data)
+    @logger.info "Changing properties of #{user['NAME'].inspect}"
+
     file = "#{File.expand_path('..', __FILE__)}/templates/user_properties.erb"
     template = ERB.new(File.new(file).read, nil, '-')
 
-    old_token_password = ""
-    old_token_password = user['TEMPLATE/TOKEN_PASSWORD'] if user['TEMPLATE/TOKEN_PASSWORD']
+    old_token_password = user['TEMPLATE/TOKEN_PASSWORD'] ? user['TEMPLATE/TOKEN_PASSWORD'] : ""
+    old_default_view = user['TEMPLATE/DEFAULT_VIEW'] ? user['TEMPLATE/DEFAULT_VIEW'] : "cloud"
+    old_lang = user['TEMPLATE/LANG'] ? user['TEMPLATE/LANG'] : "en_US"
+    old_table_order = user['TEMPLATE/TABLE_ORDER'] ? user['TEMPLATE/TABLE_ORDER'] : "desc"
+    old_vnc_wss = "yes"
 
     props = template.result(binding)
 
